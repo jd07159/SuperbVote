@@ -54,7 +54,7 @@ public class SuperbVoteConfiguration {
         this.configuration = section;
 
         try {
-            section.getList("rewards").stream()
+            section.getList("rewards", new ArrayList<>()).stream()
                     .filter(s -> s instanceof Map)
                     .map(s -> {
                         Map<?, ?> map = (Map<?, ?>) s;
@@ -104,7 +104,7 @@ public class SuperbVoteConfiguration {
         if (configuration.getBoolean("vote-command.enabled")) {
             boolean useJson = configuration.getBoolean("vote-command.use-json-text");
             VoteMessage voteMessage = VoteMessages.from(configuration, "vote-command.text", false, useJson);
-            voteCommand = new CommonCommand(voteMessage, false);
+            voteCommand = new CommonCommand(SuperbVote.getPlugin(), voteMessage, false);
         } else {
             voteCommand = null;
         }
@@ -113,7 +113,7 @@ public class SuperbVoteConfiguration {
         if (streaksConfiguration.isEnabled() && configuration.getBoolean("streaks.command.enabled")) {
             boolean useJson = configuration.getBoolean("streaks.command.use-json-text");
             VoteMessage voteStreakMessage = VoteMessages.from(configuration, "streaks.command.text", false, useJson);
-            voteStreakCommand = new CommonCommand(voteStreakMessage, true);
+            voteStreakCommand = new CommonCommand(SuperbVote.getPlugin(), voteStreakMessage, true);
         } else {
             voteStreakCommand = null;
         }
@@ -189,7 +189,7 @@ public class SuperbVoteConfiguration {
     }
 
     public VoteStorage initializeVoteStorage() throws IOException {
-        String storage = configuration.getString("storage.database");
+        String storage = configuration.getString("storage.database", "json");
         if (!SUPPORTED_STORAGE.contains(storage)) {
             SuperbVote.getPlugin().getLogger().info("Storage method '" + storage + "' is not valid, using JSON storage.");
             storage = "json";

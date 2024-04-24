@@ -4,7 +4,9 @@ author: tuxed
 version: ${project.version}
 depend: [Votifier]
 softdepend: [Vault, PlaceholderAPI]
-api-version: "1.13"
+api-version: "1.20"
+folia-supported: true
+
 commands:
   superbvote:
     description: SuperbVote main command.

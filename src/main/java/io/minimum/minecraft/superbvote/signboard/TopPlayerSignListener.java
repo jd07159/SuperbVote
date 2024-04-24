@@ -2,9 +2,12 @@ package io.minimum.minecraft.superbvote.signboard;
 
 import io.minimum.minecraft.superbvote.SuperbVote;
 import io.minimum.minecraft.superbvote.util.SerializableLocation;
-import org.bukkit.Bukkit;
+import lombok.RequiredArgsConstructor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -15,7 +18,10 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.SignChangeEvent;
 
+@RequiredArgsConstructor
 public class TopPlayerSignListener implements Listener {
+    private final SuperbVote plugin;    
+    
     @EventHandler(ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         for (TopPlayerSign sign : SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()) {
@@ -42,13 +48,13 @@ public class TopPlayerSignListener implements Listener {
     private boolean doSignBreak(Player player, TopPlayerSign sign) {
         // A sign is being destroyed.
         if (!player.hasPermission("superbvote.managesigns")) {
-            player.sendMessage(ChatColor.RED + "You can't destroy this sign.");
+            player.sendMessage(Component.text("You can't destroy this sign.", NamedTextColor.RED));
             return false;
         }
 
         // Otherwise, destroy this sign.
-        SuperbVote.getPlugin().getTopPlayerSignStorage().removeSign(sign);
-        player.sendMessage(ChatColor.RED + "Top voter sign unregistered.");
+        plugin.getTopPlayerSignStorage().removeSign(sign);
+        player.sendMessage(Component.text("Top voter sign unregistered.", NamedTextColor.RED));
         updateSigns();
         return true;
     }
@@ -59,7 +65,7 @@ public class TopPlayerSignListener implements Listener {
                 event.getBlockPlaced().getType() == Material.SKELETON_SKULL) &&
                         event.getPlayer().hasPermission("superbvote.managesigns")) {
             Block down = event.getBlockPlaced().getRelative(BlockFace.DOWN);
-            for (TopPlayerSign sign : SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()) {
+            for (TopPlayerSign sign : plugin.getTopPlayerSignStorage().getSignList()) {
                 for (BlockFace face : TopPlayerSignUpdater.FACES) {
                     if (down.getRelative(face).getLocation().equals(sign.getSign().getBukkitLocation())) {
                         // We found an adjacent sign. Update so that the change will be reflected.
@@ -84,9 +90,8 @@ public class TopPlayerSignListener implements Listener {
                     return;
                 }
 
-                TopPlayerSign sign = new TopPlayerSign(new SerializableLocation(event.getBlock().getWorld().getName(),
-                        event.getBlock().getX(), event.getBlock().getY(), event.getBlock().getZ()), p);
-                SuperbVote.getPlugin().getTopPlayerSignStorage().addSign(sign);
+                TopPlayerSign sign = new TopPlayerSign(SerializableLocation.fromLocation(event.getBlock().getLocation()), p);
+                plugin.getTopPlayerSignStorage().addSign(sign);
                 updateSigns();
 
                 event.getPlayer().sendMessage(ChatColor.GREEN + "Top voter sign registered.");
@@ -97,7 +102,7 @@ public class TopPlayerSignListener implements Listener {
     }
 
     private void updateSigns() {
-        Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), new TopPlayerSignFetcher(
-                SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()));
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> new TopPlayerSignFetcher(
+                plugin.getTopPlayerSignStorage().getSignList()).run());
     }
 }

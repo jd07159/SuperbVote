@@ -5,6 +5,8 @@ import io.minimum.minecraft.superbvote.configuration.message.MessageContext;
 import io.minimum.minecraft.superbvote.configuration.message.PlainStringMessage;
 import io.minimum.minecraft.superbvote.util.PlayerVotes;
 import lombok.RequiredArgsConstructor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -12,6 +14,8 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Sign;
 import org.bukkit.block.Skull;
+import org.bukkit.block.sign.Side;
+import org.bukkit.block.sign.SignSide;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,32 +41,43 @@ public class TopPlayerSignUpdater implements Runnable {
 
     @Override
     public void run() {
+        final SuperbVote plugin = SuperbVote.getPlugin();
+
         for (TopPlayerSign sign : toUpdate) {
             Location location = sign.getSign().getBukkitLocation();
-            if (location.getWorld() == null) {
-                SuperbVote.getPlugin().getLogger().severe("World for sign " + sign.getSign() + " is missing!");
-                continue;
-            }
-            Block block = location.getBlock();
-            if (block.getState() instanceof Sign) {
-                Sign worldSign = (Sign) block.getState();
+
+            plugin.getServer().getRegionScheduler().run(plugin, location, task -> {
+                if (location.getWorld() == null) {
+                    SuperbVote.getPlugin().getLogger().severe("World for sign " + sign.getSign() + " is missing!");
+                    return;
+                }
+
+                Block block = location.getBlock();
+                if (!(block.getState() instanceof Sign worldSign)) {
+                    return;
+                }
+
+                SignSide side = worldSign.getSide(Side.FRONT);
+
                 // TODO: Formatting
                 if (sign.getPosition() > top.size()) {
                     for (int i = 0; i < 4; i++) {
-                        worldSign.setLine(i, "???");
+                        side.line(i, Component.text("???"));
                     }
                 } else {
                     int lines = SuperbVote.getPlugin().getConfiguration().getTopPlayerSignsConfiguration().getSignText().size();
                     for (int i = 0; i < Math.min(4, lines); i++) {
-                        PlainStringMessage m = SuperbVote.getPlugin().getConfiguration().getTopPlayerSignsConfiguration().getSignText().get(i);
+                        PlainStringMessage m = plugin.getConfiguration().getTopPlayerSignsConfiguration().getSignText().get(i);
                         PlayerVotes pv = top.get(sign.getPosition() - 1);
-                        worldSign.setLine(i, m.getWithOfflinePlayer(null,
-                                new MessageContext(null, pv, null, null)).replace("%num%", Integer.toString(sign.getPosition())));
+                        side.line(i, MiniMessage.miniMessage().deserialize(m.getWithOfflinePlayer(null,
+                                new MessageContext(null, pv, null, null)).replace("%num%", Integer.toString(sign.getPosition()))));
                     }
+
                     for (int i = lines; i < 4; i++) {
-                        worldSign.setLine(i, "");
+                        side.line(i, Component.empty());
                     }
                 }
+
                 worldSign.update();
 
                 // If a head location is also present, set the location for that.
@@ -74,7 +89,7 @@ public class TopPlayerSignUpdater implements Runnable {
                             top.get(sign.getPosition() - 1).getUuid()));
                     skull.update();
                 }
-            }
+            });
         }
     }
 }

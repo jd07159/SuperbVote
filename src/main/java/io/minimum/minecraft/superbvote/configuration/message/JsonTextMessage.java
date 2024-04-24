@@ -1,7 +1,6 @@
 package io.minimum.minecraft.superbvote.configuration.message;
 
-import io.minimum.minecraft.superbvote.SuperbVote;
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.bukkit.entity.Player;
 
 public class JsonTextMessage extends MessageBase implements VoteMessage {
@@ -14,20 +13,16 @@ public class JsonTextMessage extends MessageBase implements VoteMessage {
     @Override
     public void sendAsBroadcast(Player player, MessageContext context) {
         String jsonString = replace(message, context);
-        if (Bukkit.isPrimaryThread()) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "tellraw " + player.getName() + " " + jsonString);
-        } else {
-            Bukkit.getScheduler().runTask(SuperbVote.getPlugin(), () -> sendAsBroadcast(player, context));
-        }
+
+        // TODO: really json?
+        player.sendMessage(GsonComponentSerializer.gson().deserialize(jsonString));
     }
 
     @Override
     public void sendAsReminder(Player player, MessageContext context) {
         String jsonString = replace(message, context);
-        if (Bukkit.isPrimaryThread()) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "tellraw " + player.getName() + " " + jsonString);
-        } else {
-            Bukkit.getScheduler().runTask(SuperbVote.getPlugin(), () -> sendAsReminder(player, context));
-        }
+
+        player.sendMessage(GsonComponentSerializer.gson().deserialize(jsonString));
+
     }
 }

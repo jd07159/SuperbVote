@@ -3,37 +3,36 @@ package io.minimum.minecraft.superbvote.commands;
 import io.minimum.minecraft.superbvote.SuperbVote;
 import io.minimum.minecraft.superbvote.configuration.message.MessageContext;
 import io.minimum.minecraft.superbvote.configuration.message.VoteMessage;
-import io.minimum.minecraft.superbvote.storage.ExtendedVoteStorage;
 import io.minimum.minecraft.superbvote.storage.VoteStorage;
 import io.minimum.minecraft.superbvote.util.BrokenNag;
 import lombok.RequiredArgsConstructor;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 @RequiredArgsConstructor
 public class CommonCommand implements CommandExecutor {
+    private final SuperbVote plugin;
     private final VoteMessage message;
     private final boolean streakRelated;
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String s, String[] strings) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] strings) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("This command can only be used by players."));
             return true;
         }
 
-        Player player = (Player) sender;
-        if (SuperbVote.getPlugin().getConfiguration().isConfigurationError()) {
+        if (plugin.getConfiguration().isConfigurationError()) {
             BrokenNag.nag(player);
             return true;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
-            VoteStorage voteStorage = SuperbVote.getPlugin().getVoteStorage();
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+            VoteStorage voteStorage = plugin.getVoteStorage();
             MessageContext ctx = new MessageContext(null, voteStorage.getVotes(player.getUniqueId()), voteStorage.getVoteStreakIfSupported(player.getUniqueId(), streakRelated), player);
             message.sendAsReminder(player, ctx);
         });

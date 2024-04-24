@@ -11,24 +11,35 @@ import io.minimum.minecraft.superbvote.migration.SuperbVoteJsonFileMigration;
 import io.minimum.minecraft.superbvote.signboard.TopPlayerSignFetcher;
 import io.minimum.minecraft.superbvote.util.BrokenNag;
 import io.minimum.minecraft.superbvote.util.PlayerVotes;
-import lombok.Data;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.*;
+import java.math.RoundingMode;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 public class SuperbVoteCommand implements CommandExecutor {
     public static final String FAKE_HOST_NAME_FOR_VOTE = UUID.randomUUID().toString();
     private final Map<String, ConfirmingCommand> wantToClear = new HashMap<>();
+    private final SuperbVote plugin;
+
+    public SuperbVoteCommand(SuperbVote plugin) {
+        this.plugin = plugin;
+    }
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.DARK_GRAY.toString() + ChatColor.STRIKETHROUGH + "      " +
@@ -59,8 +70,8 @@ public class SuperbVoteCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String s, String[] args) {
-        if (SuperbVote.getPlugin().getConfiguration().isConfigurationError()) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
+        if (plugin.getConfiguration().isConfigurationError()) {
             // Nag, except on /sv reload.
             if (!sender.hasPermission("superbvote.admin") || !(args.length == 1 && args[0].equals("reload"))) {
                 BrokenNag.nag(sender);
@@ -75,17 +86,17 @@ public class SuperbVoteCommand implements CommandExecutor {
 
         switch (args[0]) {
             case "votes":
-                boolean canViewOthersVotes = sender.hasPermission("superbvote.admin") ||
-                        sender.hasPermission("superbvote.votes.others");
-                Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
+                boolean canViewOthersVotes = sender.hasPermission("superbvote.admin") || sender.hasPermission("superbvote.votes.others");
+
+                plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                     UUID uuid;
                     String name;
                     if (args.length == 1) {
-                        if (sender instanceof Player) {
-                            uuid = ((Player) sender).getUniqueId();
+                        if (sender instanceof Player player) {
+                            uuid = player.getUniqueId();
                             name = sender.getName();
                         } else {
-                            sender.sendMessage(ChatColor.RED + "You can't do this unless you're a player!");
+                            sender.sendMessage(Component.text("You can't do this unless you're a player!", NamedTextColor.RED));
                             return;
                         }
                     } else if (args.length == 2) {
@@ -101,7 +112,7 @@ public class SuperbVoteCommand implements CommandExecutor {
                         sender.sendMessage(ChatColor.RED + "Checks your vote amount, or the specified player's.");
                         return;
                     }
-                    sender.sendMessage(ChatColor.GREEN + name + " has " + SuperbVote.getPlugin().getVoteStorage().getVotes(uuid).getVotes() + " votes.");
+                    sender.sendMessage(ChatColor.GREEN + name + " has " + plugin.getVoteStorage().getVotes(uuid).getVotes() + " votes.");
                 });
                 return true;
             case "top":
@@ -129,16 +140,16 @@ public class SuperbVoteCommand implements CommandExecutor {
                 }
 
                 String format = !(sender instanceof Player) || page > 0 ? "text" :
-                        SuperbVote.getPlugin().getConfig().getString("leaderboard.display", "text");
+                        plugin.getConfig().getString("leaderboard.display", "text");
 
                 switch (format) {
                     case "text":
                     default:
-                        Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
-                            TextLeaderboardConfiguration config = SuperbVote.getPlugin().getConfiguration().getTextLeaderboardConfiguration();
+                        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+                            TextLeaderboardConfiguration config = plugin.getConfiguration().getTextLeaderboardConfiguration();
                             int c = config.getPerPage();
                             int from = c * page;
-                            List<PlayerVotes> leaderboard = SuperbVote.getPlugin().getVoteStorage().getTopVoters(c, page);
+                            List<PlayerVotes> leaderboard = plugin.getVoteStorage().getTopVoters(c, page);
                             if (leaderboard.isEmpty()) {
                                 sender.sendMessage(ChatColor.RED + "No entries found.");
                                 return;
@@ -151,7 +162,7 @@ public class SuperbVoteCommand implements CommandExecutor {
                                         .getWithOfflinePlayer(sender, new MessageContext(null, leaderboard.get(i), null, null))
                                         .replaceAll("%num%", posStr));
                             }
-                            int availablePages = SuperbVote.getPlugin().getVoteStorage().getPagesAvailable(c);
+                            int availablePages = plugin.getVoteStorage().getPagesAvailable(c);
                             sender.sendMessage(config
                                     .getPageNumberText()
                                     .getBaseMessage()
@@ -160,7 +171,12 @@ public class SuperbVoteCommand implements CommandExecutor {
                         });
                         break;
                     case "scoreboard":
-                        SuperbVote.getPlugin().getScoreboardHandler().toggle((Player) sender);
+                        if (plugin.isFoliaDetected()) {
+                            sender.sendMessage(Component.text("Unable to use scoreboards on folia", NamedTextColor.RED));
+                            break;
+                        }
+
+                        plugin.getScoreboardHandler().toggle((Player) sender);
                         break;
                 }
 
@@ -178,18 +194,22 @@ public class SuperbVoteCommand implements CommandExecutor {
                     return true;
                 }
 
-                Player player = Bukkit.getPlayer(args[1]);
+                Player player = Bukkit.getPlayerExact(args[1]);
 
                 if (player == null) {
                     sender.sendMessage(ChatColor.RED + "That player was not found.");
                     return true;
                 }
 
-                com.vexsoftware.votifier.model.Vote vote = new com.vexsoftware.votifier.model.Vote();
-                vote.setUsername(args[1]);
-                vote.setTimeStamp(new Date().toString());
-                vote.setAddress(FAKE_HOST_NAME_FOR_VOTE);
-                vote.setServiceName(args[2]);
+                String serviceName = args[2];
+                String username = player.getName();
+                com.vexsoftware.votifier.model.Vote vote = new com.vexsoftware.votifier.model.Vote(
+                        serviceName,
+                        username,
+                        FAKE_HOST_NAME_FOR_VOTE,
+                        new Date().toString()
+                );
+
                 Bukkit.getPluginManager().callEvent(new VotifierEvent(vote));
 
                 sender.sendMessage(ChatColor.GREEN + "You have created a fake vote for " + player.getName() + ".");
@@ -199,8 +219,8 @@ public class SuperbVoteCommand implements CommandExecutor {
                     sender.sendMessage(ChatColor.RED + "You can't do this.");
                     return true;
                 }
-                SuperbVote.getPlugin().reloadPlugin();
-                if (SuperbVote.getPlugin().getConfiguration().isConfigurationError()) {
+                plugin.reloadPlugin();
+                if (plugin.getConfiguration().isConfigurationError()) {
                     sender.sendMessage(ChatColor.YELLOW + "Plugin configuration reloaded, but a configuration error was found.");
                     sender.sendMessage(ChatColor.YELLOW + "Please check the console for more details.");
                 } else {
@@ -224,7 +244,7 @@ public class SuperbVoteCommand implements CommandExecutor {
                 sender.sendMessage("");
 
                 final String name = sender.getName();
-                BukkitTask task = Bukkit.getScheduler().runTaskLater(SuperbVote.getPlugin(), () -> wantToClear.remove(name), 15 * 20);
+                ScheduledTask task = plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> wantToClear.remove(name), 15, TimeUnit.SECONDS);
                 wantToClear.put(sender.getName(), new ConfirmingCommand(task));
 
                 return true;
@@ -235,13 +255,13 @@ public class SuperbVoteCommand implements CommandExecutor {
                 }
                 ConfirmingCommand confirm1 = wantToClear.remove(sender.getName());
                 if (confirm1 != null) {
-                    confirm1.getCancellationTask().cancel();
-                    SuperbVote.getPlugin().getVoteStorage().clearVotes();
-                    SuperbVote.getPlugin().getQueuedVotes().clearVotes();
+                    confirm1.cancellationTask.cancel();
+                    plugin.getVoteStorage().clearVotes();
+                    plugin.getQueuedVotes().clearVotes();
 
-                    Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
-                        SuperbVote.getPlugin().getScoreboardHandler().doPopulate();
-                        new TopPlayerSignFetcher(SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()).run();
+                    plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
+                        plugin.getScoreboardHandler().doPopulate();
+                        new TopPlayerSignFetcher(plugin.getTopPlayerSignStorage().getSignList()).run();
                     });
 
                     sender.sendMessage(ChatColor.GREEN + "All votes cleared from the database.");
@@ -273,8 +293,9 @@ public class SuperbVoteCommand implements CommandExecutor {
                         sender.sendMessage(ChatColor.RED + "Not a valid listener. Currently supported: gal, svjson.");
                         return true;
                 }
-                Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
-                    if (SuperbVote.getPlugin().getVoteStorage().getPagesAvailable(1) > 0) {
+
+                plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
+                    if (plugin.getVoteStorage().getPagesAvailable(1) > 0) {
                         sender.sendMessage(ChatColor.RED + "You already have votes in the database. Use /sv clear and try again.");
                         return;
                     }
@@ -283,30 +304,30 @@ public class SuperbVoteCommand implements CommandExecutor {
                         migration.execute(new ProgressListener() {
                             @Override
                             public void onStart(int records) {
-                                SuperbVote.getPlugin().getLogger().info("Converting " + records + " records from " + migration.getName() + " to SuperbVote...");
+                                plugin.getLogger().info("Converting " + records + " records from " + migration.getName() + " to SuperbVote...");
                             }
 
                             @Override
                             public void onRecordBatch(int num, int total) {
                                 String percentage = BigDecimal.valueOf(num)
-                                        .divide(BigDecimal.valueOf(total), BigDecimal.ROUND_HALF_UP)
+                                        .divide(BigDecimal.valueOf(total), RoundingMode.HALF_UP)
                                         .multiply(BigDecimal.valueOf(100))
-                                        .setScale(1, BigDecimal.ROUND_HALF_UP)
+                                        .setScale(1, RoundingMode.HALF_UP)
                                         .toPlainString();
-                                SuperbVote.getPlugin().getLogger().info("Converted " + num + " records to SuperbVote... (" + percentage + "% complete)");
+                                plugin.getLogger().info("Converted " + num + " records to SuperbVote... (" + percentage + "% complete)");
                             }
 
                             @Override
                             public void onFinish(int records) {
-                                SuperbVote.getPlugin().getLogger().info("Successfully converted all " + records + " records to SuperbVote!");
+                                plugin.getLogger().info("Successfully converted all " + records + " records to SuperbVote!");
 
-                                SuperbVote.getPlugin().getScoreboardHandler().doPopulate();
-                                new TopPlayerSignFetcher(SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()).run();
+                                plugin.getScoreboardHandler().doPopulate();
+                                new TopPlayerSignFetcher(plugin.getTopPlayerSignStorage().getSignList()).run();
                             }
                         });
                         sender.sendMessage(ChatColor.GREEN + "Migration succeeded!");
                     } catch (Exception e) {
-                        SuperbVote.getPlugin().getLogger().log(Level.SEVERE, "Unable to migrate", e);
+                        plugin.getLogger().log(Level.SEVERE, "Unable to migrate", e);
                         sender.sendMessage(ChatColor.RED + "Migration failed. Check the console for details.");
                     }
                 });
@@ -319,8 +340,5 @@ public class SuperbVoteCommand implements CommandExecutor {
         return true;
     }
 
-    @Data
-    private class ConfirmingCommand {
-        private final BukkitTask cancellationTask;
-    }
+    private record ConfirmingCommand(ScheduledTask cancellationTask) {}
 }

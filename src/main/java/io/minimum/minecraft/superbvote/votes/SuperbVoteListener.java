@@ -25,21 +25,27 @@ import java.util.UUID;
 import java.util.logging.Level;
 
 public class SuperbVoteListener implements Listener {
+    private final SuperbVote plugin;
+    
+    public SuperbVoteListener(SuperbVote plugin) {
+        this.plugin = plugin;
+        }
+    
     @EventHandler
     public void onVote(final VotifierEvent event) {
-        if (SuperbVote.getPlugin().getConfiguration().isConfigurationError()) {
-            SuperbVote.getPlugin().getLogger().severe("Refusing to process vote because your configuration is invalid. Please check your logs.");
+        if (plugin.getConfiguration().isConfigurationError()) {
+            plugin.getLogger().severe("Refusing to process vote because your configuration is invalid. Please check your logs.");
             return;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
             OfflinePlayer op = Bukkit.getOfflinePlayer(event.getVote().getUsername());
             String worldName = null;
             if (op.isOnline()) {
                 worldName = op.getPlayer().getWorld().getName();
             }
 
-            VoteStorage voteStorage = SuperbVote.getPlugin().getVoteStorage();
+            VoteStorage voteStorage = plugin.getVoteStorage();
             VoteStreak voteStreak = voteStorage.getVoteStreakIfSupported(op.getUniqueId(), false);
             PlayerVotes pvCurrent = voteStorage.getVotes(op.getUniqueId());
             PlayerVotes pv = new PlayerVotes(op.getUniqueId(), op.getName(), pvCurrent.getVotes() + 1, PlayerVotes.Type.FUTURE);
@@ -47,39 +53,39 @@ public class SuperbVoteListener implements Listener {
                     event.getVote().getAddress().equals(SuperbVoteCommand.FAKE_HOST_NAME_FOR_VOTE), worldName, new Date());
 
             if (!vote.isFakeVote()) {
-                if (SuperbVote.getPlugin().getConfiguration().getStreaksConfiguration().isSharedCooldownPerService()) {
+                if (plugin.getConfiguration().getStreaksConfiguration().isSharedCooldownPerService()) {
                     if (voteStreak == null) {
                         // becomes a required value
                         voteStreak = voteStorage.getVoteStreakIfSupported(op.getUniqueId(), true);
                     }
                     if (voteStreak != null && voteStreak.getServices().containsKey(vote.getServiceName())) {
-                        long difference = SuperbVote.getPlugin().getVoteServiceCooldown().getMax() - voteStreak.getServices().get(vote.getServiceName());
+                        long difference = plugin.getVoteServiceCooldown().getMax() - voteStreak.getServices().get(vote.getServiceName());
                         if (difference > 0) {
-                            SuperbVote.getPlugin().getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
+                            plugin.getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
                                     vote.getServiceName() + ") due to [shared] service cooldown.");
                             return;
                         }
                     }
                 }
 
-                if (SuperbVote.getPlugin().getVoteServiceCooldown().triggerCooldown(vote)) {
-                    SuperbVote.getPlugin().getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
+                if (plugin.getVoteServiceCooldown().triggerCooldown(vote)) {
+                    plugin.getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
                             vote.getServiceName() + ") due to service cooldown.");
                     return;
                 }
             }
 
-            processVote(pv, voteStreak, vote, SuperbVote.getPlugin().getConfig().getBoolean("broadcast.enabled"),
-                    !op.isOnline() && SuperbVote.getPlugin().getConfiguration().requirePlayersOnline(),
+            processVote(pv, voteStreak, vote, plugin.getConfig().getBoolean("broadcast.enabled"),
+                    !op.isOnline() && plugin.getConfiguration().requirePlayersOnline(),
                     false);
         });
     }
 
     private void processVote(PlayerVotes pv, VoteStreak voteStreak, Vote vote, boolean broadcast, boolean queue, boolean wasQueued) {
-        List<VoteReward> bestRewards = SuperbVote.getPlugin().getConfiguration().getBestRewards(vote, pv);
+        List<VoteReward> bestRewards = plugin.getConfiguration().getBestRewards(vote, pv);
         MessageContext context = new MessageContext(vote, pv, voteStreak, Bukkit.getOfflinePlayer(vote.getUuid()));
-        boolean canBroadcast = SuperbVote.getPlugin().getRecentVotesStorage().canBroadcast(vote.getUuid());
-        SuperbVote.getPlugin().getRecentVotesStorage().updateLastVote(vote.getUuid());
+        boolean canBroadcast = plugin.getRecentVotesStorage().canBroadcast(vote.getUuid());
+        plugin.getRecentVotesStorage().updateLastVote(vote.getUuid());
 
         Optional<Player> player = context.getPlayer().map(OfflinePlayer::getPlayer);
         boolean hideBroadcast = player.isPresent() && player.get().hasPermission("superbvote.bypassbroadcast");
@@ -89,55 +95,59 @@ public class SuperbVoteListener implements Listener {
         }
 
         if (queue) {
-            if (!SuperbVote.getPlugin().getConfiguration().shouldQueueVotes()) {
-                SuperbVote.getPlugin().getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
+            if (!plugin.getConfiguration().shouldQueueVotes()) {
+                plugin.getLogger().log(Level.WARNING, "Ignoring vote from " + vote.getName() + " (service: " +
                         vote.getServiceName() + ") because they aren't online.");
                 return;
             }
 
-            SuperbVote.getPlugin().getLogger().log(Level.INFO, "Queuing vote from " + vote.getName() + " to be run later");
+            plugin.getLogger().log(Level.INFO, "Queuing vote from " + vote.getName() + " to be run later");
             for (VoteReward reward : bestRewards) {
-                reward.broadcastVote(context, false, broadcast && SuperbVote.getPlugin().getConfig().getBoolean("broadcast.queued") && canBroadcast && !hideBroadcast);
+                reward.broadcastVote(context, false, broadcast && plugin.getConfig().getBoolean("broadcast.queued") && canBroadcast && !hideBroadcast);
             }
-            SuperbVote.getPlugin().getQueuedVotes().addVote(vote);
+            plugin.getQueuedVotes().addVote(vote);
         } else {
-            if (!vote.isFakeVote() || SuperbVote.getPlugin().getConfig().getBoolean("votes.process-fake-votes")) {
-                SuperbVote.getPlugin().getVoteStorage().addVote(vote);
+            if (!vote.isFakeVote() || plugin.getConfig().getBoolean("votes.process-fake-votes")) {
+                plugin.getVoteStorage().addVote(vote);
             }
 
             if (!wasQueued) {
                 for (VoteReward reward : bestRewards) {
-                    reward.broadcastVote(context, SuperbVote.getPlugin().getConfig().getBoolean("broadcast.message-player"), broadcast && canBroadcast && !hideBroadcast);
+                    reward.broadcastVote(context, plugin.getConfig().getBoolean("broadcast.message-player"), broadcast && canBroadcast && !hideBroadcast);
                 }
-                Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), this::afterVoteProcessing);
+
+                plugin.getServer().getAsyncScheduler().runNow(plugin, task -> afterVoteProcessing());
             }
 
-            Bukkit.getScheduler().runTask(SuperbVote.getPlugin(), () -> bestRewards.forEach(reward -> reward.runCommands(vote)));
+            // Run sync on players region if online, otherwise run reward commands on the global thread and hope for the best
+            final Runnable runCommands = () -> bestRewards.forEach(reward -> reward.runCommands(vote));
+            final Runnable runGlobal = () -> plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runCommands.run());
+
+            player.ifPresentOrElse(p -> p.getScheduler().run(plugin, task -> runCommands.run(), runGlobal), runGlobal);
         }
     }
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        if (SuperbVote.getPlugin().getConfiguration().isConfigurationError()) {
-            if (event.getPlayer().hasPermission("superbvote.admin")) {
-                Player player = event.getPlayer();
-                Bukkit.getScheduler().runTaskLater(SuperbVote.getPlugin(), () -> BrokenNag.nag(player), 40);
-            }
+        final Player player = event.getPlayer();
+        
+        if (plugin.getConfiguration().isConfigurationError() && player.hasPermission("superbvote.admin")) {
+            player.getScheduler().runDelayed(plugin, task -> BrokenNag.nag(player), () -> {}, 40L);
             return;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(SuperbVote.getPlugin(), () -> {
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
             // Update names in MySQL, if it is being used.
-            if (SuperbVote.getPlugin().getVoteStorage() instanceof MysqlVoteStorage) {
-                ((MysqlVoteStorage) SuperbVote.getPlugin().getVoteStorage()).updateName(event.getPlayer());
+            if (plugin.getVoteStorage() instanceof MysqlVoteStorage sqlStorage) {
+                sqlStorage.updateName(event.getPlayer());
             }
 
             // Process queued votes.
-            VoteStorage voteStorage = SuperbVote.getPlugin().getVoteStorage();
+            VoteStorage voteStorage = plugin.getVoteStorage();
             UUID playerUUID = event.getPlayer().getUniqueId();
             PlayerVotes pv = voteStorage.getVotes(playerUUID);
             VoteStreak voteStreak = voteStorage.getVoteStreakIfSupported(playerUUID, false);
-            List<Vote> votes = SuperbVote.getPlugin().getQueuedVotes().getAndRemoveVotes(playerUUID);
+            List<Vote> votes = plugin.getQueuedVotes().getAndRemoveVotes(playerUUID);
             if (!votes.isEmpty()) {
                 for (Vote vote : votes) {
                     processVote(pv, voteStreak, vote, false, false, true);
@@ -147,24 +157,24 @@ public class SuperbVoteListener implements Listener {
             }
 
             // Remind players to vote.
-            if (SuperbVote.getPlugin().getConfig().getBoolean("vote-reminder.on-join") &&
+            if (plugin.getConfig().getBoolean("vote-reminder.on-join") &&
                     event.getPlayer().hasPermission("superbvote.notify") &&
-                    !SuperbVote.getPlugin().getVoteStorage().hasVotedToday(event.getPlayer().getUniqueId())) {
+                    !plugin.getVoteStorage().hasVotedToday(event.getPlayer().getUniqueId())) {
                 MessageContext context = new MessageContext(null, pv, voteStreak, event.getPlayer());
-                SuperbVote.getPlugin().getConfiguration().getReminderMessage().sendAsReminder(event.getPlayer(), context);
+                plugin.getConfiguration().getReminderMessage().sendAsReminder(event.getPlayer(), context);
             }
         });
     }
 
     private void afterVoteProcessing() {
-        SuperbVote.getPlugin().getScoreboardHandler().doPopulate();
-        new TopPlayerSignFetcher(SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()).run();
+        plugin.getScoreboardHandler().doPopulate();
+        new TopPlayerSignFetcher(plugin.getTopPlayerSignStorage().getSignList()).run();
     }
 
     @EventHandler
     public void onPluginEnable(PluginEnableEvent event) {
         if (event.getPlugin().getName().equals("PlaceholderAPI")) {
-            SuperbVote.getPlugin().getLogger().info("Using clip's PlaceholderAPI to provide extra placeholders.");
+            plugin.getLogger().info("Using clip's PlaceholderAPI to provide extra placeholders.");
         }
     }
 }

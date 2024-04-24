@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import io.minimum.minecraft.superbvote.configuration.message.placeholder.ClipsPlaceholderProvider;
 import io.minimum.minecraft.superbvote.configuration.message.placeholder.PlaceholderProvider;
 import io.minimum.minecraft.superbvote.configuration.message.placeholder.SuperbVotePlaceholderProvider;
-import org.bukkit.entity.Player;
 
 import java.util.List;
 

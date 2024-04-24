@@ -10,16 +10,17 @@ import io.minimum.minecraft.superbvote.storage.QueuedVotesStorage;
 import io.minimum.minecraft.superbvote.storage.RecentVotesStorage;
 import io.minimum.minecraft.superbvote.storage.VoteStorage;
 import io.minimum.minecraft.superbvote.util.BrokenNag;
-import io.minimum.minecraft.superbvote.util.SpigotUpdater;
 import io.minimum.minecraft.superbvote.util.cooldowns.VoteServiceCooldown;
 import io.minimum.minecraft.superbvote.votes.SuperbVoteListener;
 import io.minimum.minecraft.superbvote.votes.VoteReminder;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import lombok.Getter;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class SuperbVote extends JavaPlugin {
     @Getter
@@ -38,7 +39,9 @@ public class SuperbVote extends JavaPlugin {
     private VoteServiceCooldown voteServiceCooldown;
     @Getter
     private TopPlayerSignStorage topPlayerSignStorage;
-    private BukkitTask voteReminderTask;
+    private ScheduledTask voteReminderTask;
+    @Getter
+    private final boolean foliaDetected = isFolia();
 
     @Override
     public void onEnable() {
@@ -64,7 +67,7 @@ public class SuperbVote extends JavaPlugin {
 
         recentVotesStorage = new RecentVotesStorage();
 
-        scoreboardHandler = new ScoreboardHandler();
+        scoreboardHandler = new ScoreboardHandler(this);
         voteServiceCooldown = new VoteServiceCooldown(getConfig().getInt("votes.cooldown-per-service", 3600));
 
         topPlayerSignStorage = new TopPlayerSignStorage();
@@ -74,22 +77,23 @@ public class SuperbVote extends JavaPlugin {
             throw new RuntimeException("Exception whilst loading top player signs", e);
         }
 
-        getCommand("superbvote").setExecutor(new SuperbVoteCommand());
-        getCommand("vote").setExecutor(configuration.getVoteCommand());
-        getCommand("votestreak").setExecutor(configuration.getVoteStreakCommand());
+        Objects.requireNonNull(getCommand("superbvote")).setExecutor(new SuperbVoteCommand(this));
+        Objects.requireNonNull(getCommand("vote")).setExecutor(configuration.getVoteCommand());
+        Objects.requireNonNull(getCommand("votestreak")).setExecutor(configuration.getVoteStreakCommand());
 
-        getServer().getPluginManager().registerEvents(new SuperbVoteListener(), this);
-        getServer().getPluginManager().registerEvents(new TopPlayerSignListener(), this);
-        getServer().getScheduler().runTaskTimerAsynchronously(this, voteStorage::save, 20, 20 * 30);
-        getServer().getScheduler().runTaskTimerAsynchronously(this, queuedVotes::save, 20, 20 * 30);
-        getServer().getScheduler().runTaskAsynchronously(this, SuperbVote.getPlugin().getScoreboardHandler()::doPopulate);
-        getServer().getScheduler().runTaskAsynchronously(this, new TopPlayerSignFetcher(topPlayerSignStorage.getSignList()));
+        getServer().getPluginManager().registerEvents(new SuperbVoteListener(this), this);
+        getServer().getPluginManager().registerEvents(new TopPlayerSignListener(this), this);
+
+        getServer().getAsyncScheduler().runAtFixedRate(this, task -> voteStorage.save(), 1, 30, TimeUnit.SECONDS);
+        getServer().getAsyncScheduler().runAtFixedRate(this, task -> queuedVotes.save(), 1, 30, TimeUnit.SECONDS);
+        getServer().getAsyncScheduler().runNow(this, task -> scoreboardHandler.doPopulate());
+        getServer().getAsyncScheduler().runNow(this, task -> new TopPlayerSignFetcher(topPlayerSignStorage.getSignList()).run());
 
         int r = getConfig().getInt("vote-reminder.repeat");
         String text = getConfig().getString("vote-reminder.message");
         if (text != null && !text.isEmpty()) {
             if (r > 0) {
-                voteReminderTask = getServer().getScheduler().runTaskTimerAsynchronously(this, new VoteReminder(), 20 * r, 20 * r);
+                voteReminderTask = getServer().getAsyncScheduler().runAtFixedRate(this, task -> new VoteReminder().run(), r, r, TimeUnit.SECONDS);
             }
         }
 
@@ -97,9 +101,12 @@ public class SuperbVote extends JavaPlugin {
             getLogger().info("Using clip's PlaceholderAPI to provide extra placeholders.");
         }
 
+        // Disable update checking
+        /*
         SpigotUpdater updater = new SpigotUpdater();
         getServer().getScheduler().runTaskAsynchronously(this, updater);
         getServer().getPluginManager().registerEvents(updater, this);
+        */
     }
 
     @Override
@@ -123,9 +130,10 @@ public class SuperbVote extends JavaPlugin {
         configuration = new SuperbVoteConfiguration(getConfig());
         scoreboardHandler.reload();
         voteServiceCooldown = new VoteServiceCooldown(getConfig().getInt("votes.cooldown-per-service", 3600));
-        getServer().getScheduler().runTaskAsynchronously(this, getScoreboardHandler()::doPopulate);
-        getCommand("vote").setExecutor(configuration.getVoteCommand());
-        getCommand("votestreak").setExecutor(configuration.getVoteStreakCommand());
+        getServer().getAsyncScheduler().runNow(this, task -> scoreboardHandler.doPopulate());
+
+        Objects.requireNonNull(getCommand("vote")).setExecutor(configuration.getVoteCommand());
+        Objects.requireNonNull(getCommand("votestreak")).setExecutor(configuration.getVoteStreakCommand());
 
         if (voteReminderTask != null) {
             voteReminderTask.cancel();
@@ -134,11 +142,20 @@ public class SuperbVote extends JavaPlugin {
         int r = getConfig().getInt("vote-reminder.repeat");
         String text = getConfig().getString("vote-reminder.message");
         if (text != null && !text.isEmpty() && r > 0) {
-            voteReminderTask = getServer().getScheduler().runTaskTimerAsynchronously(this, new VoteReminder(), 20 * r, 20 * r);
+            voteReminderTask = getServer().getAsyncScheduler().runAtFixedRate(this, task -> new VoteReminder().run(), r, r, TimeUnit.SECONDS);
         }
     }
 
     public ClassLoader _exposeClassLoader() {
         return getClassLoader();
+    }
+
+    private static boolean isFolia() {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 }
