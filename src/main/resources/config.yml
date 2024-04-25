@@ -132,3 +132,10 @@ top-player-signs:
   - ""
   - "%player%"
   - "&l%votes% &rvotes"
+
+vote-party:
+  votes-needed: 5000
+  start-delay-seconds: 5
+  commands:
+    - give @a dirt 1
+  broadcast-message: 'Vote goal of <count> reached, a vote party will start in <delay> seconds!'

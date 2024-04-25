@@ -16,6 +16,10 @@ commands:
   votestreak:
     description: SuperbVote vote streak command.
     aliases: [vstreak]
+  voteparty:
+    description: SuperbVote voteparty command.
+    aliases: [vp]
+
 permissions:
   superbvote.notify:
     default: true
@@ -23,3 +27,9 @@ permissions:
     default: op
   superbvote.admin:
     default: op
+  superbvote.voteparty.*:
+    default: op
+    children:
+      superbvote.voteparty.setcounter: true
+      superbvote.voteparty.addvotes: true
+      superbvote.voteparty.startparty: true

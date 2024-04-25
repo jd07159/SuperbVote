@@ -1,6 +1,7 @@
 package io.minimum.minecraft.superbvote;
 
 import io.minimum.minecraft.superbvote.commands.SuperbVoteCommand;
+import io.minimum.minecraft.superbvote.commands.VotePartyCommand;
 import io.minimum.minecraft.superbvote.configuration.SuperbVoteConfiguration;
 import io.minimum.minecraft.superbvote.scoreboard.ScoreboardHandler;
 import io.minimum.minecraft.superbvote.signboard.TopPlayerSignFetcher;
@@ -12,6 +13,7 @@ import io.minimum.minecraft.superbvote.storage.VoteStorage;
 import io.minimum.minecraft.superbvote.util.BrokenNag;
 import io.minimum.minecraft.superbvote.util.cooldowns.VoteServiceCooldown;
 import io.minimum.minecraft.superbvote.votes.SuperbVoteListener;
+import io.minimum.minecraft.superbvote.votes.VoteParty;
 import io.minimum.minecraft.superbvote.votes.VoteReminder;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import lombok.Getter;
@@ -42,6 +44,8 @@ public class SuperbVote extends JavaPlugin {
     private ScheduledTask voteReminderTask;
     @Getter
     private final boolean foliaDetected = isFolia();
+    @Getter
+    private final VoteParty voteParty = new VoteParty(this);
 
     @Override
     public void onEnable() {
@@ -76,10 +80,12 @@ public class SuperbVote extends JavaPlugin {
         } catch (IOException e) {
             throw new RuntimeException("Exception whilst loading top player signs", e);
         }
+        voteParty.load();
 
         Objects.requireNonNull(getCommand("superbvote")).setExecutor(new SuperbVoteCommand(this));
         Objects.requireNonNull(getCommand("vote")).setExecutor(configuration.getVoteCommand());
         Objects.requireNonNull(getCommand("votestreak")).setExecutor(configuration.getVoteStreakCommand());
+        Objects.requireNonNull(getCommand("voteparty")).setExecutor(new VotePartyCommand(this));
 
         getServer().getPluginManager().registerEvents(new SuperbVoteListener(this), this);
         getServer().getPluginManager().registerEvents(new TopPlayerSignListener(this), this);
