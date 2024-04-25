@@ -21,10 +21,6 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
-        <repository>
-            <id>terraconia</id> <!-- https://github.com/NuVotifier/NuVotifier/issues/286#issuecomment-1107567939 -->
-            <url>https://repo.terraconia.de/public/</url>
-        </repository>
     </repositories>
 
     <dependencies>
