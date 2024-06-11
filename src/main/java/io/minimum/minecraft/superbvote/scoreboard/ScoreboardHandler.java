@@ -15,20 +15,16 @@ import java.util.List;
 
 public class ScoreboardHandler {
     private final SuperbVote plugin;
-    private final Scoreboard scoreboard;
-    private final Objective objective;
+    private Scoreboard scoreboard = null;
+    private Objective objective = null;
 
     public ScoreboardHandler(SuperbVote plugin) {
         this.plugin = plugin;
-        scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-        objective = scoreboard.registerNewObjective("votes", Criteria.DUMMY, Component.text("Votes"));
-        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        objective.getScore("None found").setScore(1);
-        reload();
     }
 
     public void reload() {
-        objective.setDisplayName(ChatColor.translateAlternateColorCodes('&',
+        if (objective != null)
+            objective.setDisplayName(ChatColor.translateAlternateColorCodes('&',
                 plugin.getConfig().getString("leaderboard.scoreboard.title", "Top voters")));
     }
 
@@ -36,6 +32,13 @@ public class ScoreboardHandler {
         if (plugin.isFoliaDetected() || !plugin.getConfig().getString("leaderboard.display").equals("scoreboard")) {
             return;
         }
+
+        scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+        objective = scoreboard.registerNewObjective("votes", Criteria.DUMMY, Component.text("Votes"));
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+        objective.getScore("None found").setScore(1);
+        reload();
+
         List<PlayerVotes> leaderboardAsUuids = plugin.getVoteStorage().getTopVoters(
                 Math.min(16, plugin.getConfig().getInt("leaderboard.scoreboard.max", 10)), 0);
         List<String> leaderboardAsNames = leaderboardAsUuids.stream()
@@ -55,6 +58,7 @@ public class ScoreboardHandler {
     }
 
     public void toggle(Player player) {
-        player.setScoreboard(scoreboard);
+        if (scoreboard != null)
+            player.setScoreboard(scoreboard);
     }
 }
