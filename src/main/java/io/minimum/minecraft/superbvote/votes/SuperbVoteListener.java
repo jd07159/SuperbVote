@@ -119,11 +119,7 @@ public class SuperbVoteListener implements Listener {
                 plugin.getServer().getAsyncScheduler().runNow(plugin, task -> afterVoteProcessing());
             }
 
-            // Run sync on players region if online, otherwise run reward commands on the global thread and hope for the best
-            final Runnable runCommands = () -> bestRewards.forEach(reward -> reward.runCommands(vote));
-            final Runnable runGlobal = () -> plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runCommands.run());
-
-            player.ifPresentOrElse(p -> p.getScheduler().run(plugin, task -> runCommands.run(), runGlobal), runGlobal);
+            plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> bestRewards.forEach(reward -> reward.runCommands(vote)));
         }
     }
 
