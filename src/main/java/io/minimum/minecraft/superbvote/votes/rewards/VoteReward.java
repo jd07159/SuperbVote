@@ -22,13 +22,15 @@ public class VoteReward {
     private final boolean cascade;
 
     public void broadcastVote(MessageContext context, boolean playerAnnounce, boolean broadcast) {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (playerMessage != null && Optional.of(player).equals(context.getPlayer()) && playerAnnounce) {
-                playerMessage.sendAsBroadcast(player, context);
-            }
-            if (broadcastMessage != null && broadcast) {
-                broadcastMessage.sendAsBroadcast(player, context);
-            }
+        if (playerMessage != null && context.getPlayer().isPresent() && playerAnnounce) {
+            Player votingPlayer = (Player) context.getPlayer().get();
+            playerMessage.sendAsBroadcast(votingPlayer, context);
+        }
+
+        if (broadcastMessage != null && broadcast) {
+            Bukkit.getOnlinePlayers().stream()
+                    .filter(player -> player.hasPermission("superbvote.notify"))
+                    .forEach(player -> broadcastMessage.sendAsBroadcast(player, context));
         }
     }
 
