@@ -24,7 +24,11 @@ public class TopPlayerSignListener implements Listener {
     
     @EventHandler(ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        for (TopPlayerSign sign : SuperbVote.getPlugin().getTopPlayerSignStorage().getSignList()) {
+        if (!plugin.getConfiguration().getTopPlayerSignsConfiguration().isEnabled()) {
+            return;
+        }
+
+        for (TopPlayerSign sign : plugin.getTopPlayerSignStorage().getSignList()) {
             if (sign.getSign().getBukkitLocation().equals(event.getBlock().getLocation())) {
                 // A sign is being destroyed.
                 if (!doSignBreak(event.getPlayer(), sign)) {
@@ -61,6 +65,10 @@ public class TopPlayerSignListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
+        if (!plugin.getConfiguration().getTopPlayerSignsConfiguration().isEnabled()) {
+            return;
+        }
+
         if ((event.getBlockPlaced().getType() == Material.SKELETON_WALL_SKULL ||
                 event.getBlockPlaced().getType() == Material.SKELETON_SKULL) &&
                         event.getPlayer().hasPermission("superbvote.managesigns")) {
@@ -78,6 +86,10 @@ public class TopPlayerSignListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onSignChange(SignChangeEvent event) {
+        if (!plugin.getConfiguration().getTopPlayerSignsConfiguration().isEnabled()) {
+            return;
+        }
+
         try {
             if (event.getLine(0).startsWith("[topvoter]") && event.getPlayer().hasPermission("superbvote.managesigns")) {
                 int p;

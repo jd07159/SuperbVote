@@ -7,5 +7,6 @@ import java.util.List;
 
 @Value
 public class TopPlayerSignsConfiguration {
+    boolean enabled;
     private final List<PlainStringMessage> signText;
 }

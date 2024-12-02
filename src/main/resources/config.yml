@@ -127,6 +127,7 @@ leaderboard:
 
 # Control top player signs.
 top-player-signs:
+  enabled: true
   format:
   - "#%num%"
   - ""

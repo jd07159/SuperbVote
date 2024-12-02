@@ -99,7 +99,8 @@ public class SuperbVote extends JavaPlugin {
         String text = getConfig().getString("vote-reminder.message");
         if (text != null && !text.isEmpty()) {
             if (r > 0) {
-                voteReminderTask = getServer().getAsyncScheduler().runAtFixedRate(this, task -> new VoteReminder().run(), r, r, TimeUnit.SECONDS);
+                final VoteReminder reminder = new VoteReminder();
+                voteReminderTask = getServer().getAsyncScheduler().runAtFixedRate(this, task -> reminder.run(), r, r, TimeUnit.SECONDS);
             }
         }
 

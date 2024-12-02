@@ -126,6 +126,7 @@ public class SuperbVoteConfiguration {
         );
 
         topPlayerSignsConfiguration = new TopPlayerSignsConfiguration(
+                configuration.getBoolean("top-player-signs.enabled", true),
                 configuration.getStringList("top-player-signs.format").stream()
                         .map(PlainStringMessage::new)
                         .collect(Collectors.toList())

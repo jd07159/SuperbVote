@@ -7,10 +7,10 @@ import io.minimum.minecraft.superbvote.votes.Vote;
 import io.minimum.minecraft.superbvote.votes.rewards.matchers.RewardMatcher;
 import lombok.Data;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.util.List;
-import java.util.Optional;
 
 @Data
 public class VoteReward {
@@ -22,15 +22,16 @@ public class VoteReward {
     private final boolean cascade;
 
     public void broadcastVote(MessageContext context, boolean playerAnnounce, boolean broadcast) {
-        if (playerMessage != null && context.getPlayer().isPresent() && playerAnnounce) {
-            Player votingPlayer = (Player) context.getPlayer().get();
-            playerMessage.sendAsBroadcast(votingPlayer, context);
+        if (playerMessage != null && playerAnnounce) {
+            context.getPlayer().map(OfflinePlayer::getPlayer).ifPresent(votingPlayer -> playerMessage.sendAsBroadcast(votingPlayer, context));
         }
 
         if (broadcastMessage != null && broadcast) {
-            Bukkit.getOnlinePlayers().stream()
-                    .filter(player -> player.hasPermission("superbvote.notify"))
-                    .forEach(player -> broadcastMessage.sendAsBroadcast(player, context));
+            for (final Player player : Bukkit.getOnlinePlayers()) {
+                if (player.hasPermission("superbvote.notify")) {
+                    broadcastMessage.sendAsBroadcast(player, context);
+                }
+            }
         }
     }
 
