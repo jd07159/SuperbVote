@@ -293,7 +293,7 @@ public class MysqlVoteStorage implements ExtendedVoteStorage {
         List<PlayerVotes> votes = new ArrayList<>();
         try (Connection connection = dbPool.getConnection()) {
             String valueStatement = Joiner.on(", ").join(Collections.nCopies(onlinePlayers.size(), "?"));
-            try (PreparedStatement statement = connection.prepareStatement("SELECT uuid, last_name, votes, (DATE(last_vote) = CURRENT_DATE()) AS has_voted_today FROM " + tableName + " WHERE uuid IN (" + valueStatement + ")")) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT uuid, last_name, votes, (DATE(last_vote) = CURRENT_DATE() OR last_vote >= NOW() - INTERVAL 12 HOUR) AS has_voted_today FROM " + tableName + " WHERE uuid IN (" + valueStatement + ")")) {
                 for (int i = 0; i < onlinePlayers.size(); i++) {
                     statement.setString(i + 1, onlinePlayers.get(i).toString());
                 }
