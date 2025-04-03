@@ -62,7 +62,7 @@ public class VotePartyCommand implements CommandExecutor, TabCompleter {
     }
 
     private void showVotesNeeded(CommandSender sender) {
-        sender.sendRichMessage("<gray>[<bold><aqua>Vote<white>Party</bold><gray>] <aqua>Votes needed for party: <white>" + (plugin.getVoteParty().votesNeeded() - plugin.getVoteParty().getCurrentVotes()));
+        sender.sendRichMessage("<#dddddd>[<#ff55a3>RAGESMP</#ff55a3>]</#dddddd> 추천 이벤트까지 남은 추천 수: <#ff55a3>" + (plugin.getVoteParty().votesNeeded() - plugin.getVoteParty().getCurrentVotes()));
     }
 
     @Override
